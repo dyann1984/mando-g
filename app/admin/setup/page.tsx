@@ -1,16 +1,29 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ArrowRight } from "lucide-react";
+import { ShieldCheck, ArrowRight, KeyRound } from "lucide-react";
 
 export default function AdminSetupPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [setupKey, setSetupKey] = useState("");
+  const [requiresKey, setRequiresKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/setup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.requiresKey) {
+          setRequiresKey(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +39,7 @@ export default function AdminSetupPage() {
       const res = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, password, setupKey }),
       });
       const data = await res.json();
 
@@ -113,6 +126,26 @@ export default function AdminSetupPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+
+          {requiresKey && (
+            <div>
+              <label className="block text-xs font-head uppercase tracking-wider text-oro mb-1.5 flex items-center gap-1.5">
+                <KeyRound size={13} className="text-oro" />
+                <span>Clave de Autorización de Setup (ADMIN_SETUP_KEY)</span>
+              </label>
+              <input
+                type="password"
+                required
+                className="campo text-sm"
+                placeholder="Ingresa la clave de setup del entorno"
+                value={setupKey}
+                onChange={(e) => setSetupKey(e.target.value)}
+              />
+              <p className="text-[10px] text-hueso/40 mt-1">
+                Esta clave protege el sistema contra inicializaciones no autorizadas.
+              </p>
+            </div>
+          )}
 
           <button
             type="submit"

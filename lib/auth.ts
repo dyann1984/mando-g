@@ -4,7 +4,17 @@ import { cookies } from "next/headers";
 import { AdminUser, InviteCode } from "@/types/presskit";
 import { getAdmins, saveAdmins, getInvites, saveInvites } from "@/lib/db";
 
-const JWT_SECRET = process.env.AUTH_SECRET || "mandog_presskit_secure_token_secret_key_2026_salt";
+function getJwtSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("AUTH_SECRET no está configurada en las variables de entorno de producción.");
+    }
+    return "dev_secret_mando_g_local_development_only";
+  }
+  return secret;
+}
+
 const COOKIE_NAME = "mg_presskit_session";
 
 export interface SessionData {
@@ -36,7 +46,7 @@ export function generateToken(user: AdminUser, expiresInDays = 7): string {
   ).toString("base64url");
 
   const signature = crypto
-    .createHmac("sha256", JWT_SECRET)
+    .createHmac("sha256", getJwtSecret())
     .update(`${header}.${payload}`)
     .digest("base64url");
 
@@ -49,7 +59,7 @@ export function verifyToken(token: string): SessionData | null {
     if (!header || !payload || !signature) return null;
 
     const expectedSignature = crypto
-      .createHmac("sha256", JWT_SECRET)
+      .createHmac("sha256", getJwtSecret())
       .update(`${header}.${payload}`)
       .digest("base64url");
 

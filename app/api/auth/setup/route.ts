@@ -5,8 +5,10 @@ import { AdminUser } from "@/types/presskit";
 
 export async function GET() {
   const admins = await getAdmins();
+  const requiresKey = Boolean(process.env.ADMIN_SETUP_KEY);
   return NextResponse.json({
     needsSetup: admins.length === 0,
+    requiresKey,
     count: admins.length,
   });
 }
@@ -21,7 +23,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const { username, email, password } = await req.json();
+    const body = await req.json();
+    const { username, email, password, setupKey } = body;
+
+    // Validación de autorización para el setup inicial
+    const requiredSetupKey = process.env.ADMIN_SETUP_KEY;
+    if (requiredSetupKey) {
+      const providedKey = setupKey || req.headers.get("x-admin-setup-key");
+      if (!providedKey || providedKey !== requiredSetupKey) {
+        return NextResponse.json(
+          { error: "Acceso denegado: Se requiere una clave de autorización válida (ADMIN_SETUP_KEY) para configurar el primer administrador." },
+          { status: 401 }
+        );
+      }
+    }
 
     if (!username || !email || !password) {
       return NextResponse.json({ error: "Nombre de usuario, email y contraseña son obligatorios." }, { status: 400 });
