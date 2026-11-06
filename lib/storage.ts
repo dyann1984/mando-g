@@ -54,8 +54,13 @@ export async function uploadFile(
       }
     }
 
-    // 3. Fallback local para desarrollo o entornos sin credenciales aún
+    // 3. Fallback local EXCLUSIVAMENTE para desarrollo local
     if (!publicUrl) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "Operación rechazada (uploadFile): No se detectó almacenamiento persistente en la nube (Supabase Storage). La subida a almacenamiento temporal está estrictamente bloqueada en producción para evitar pérdida de archivos."
+        );
+      }
       try {
         const uploadDir = path.join(process.cwd(), "public", "uploads", category);
         if (!fs.existsSync(uploadDir)) {

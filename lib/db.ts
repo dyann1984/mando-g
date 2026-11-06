@@ -12,6 +12,14 @@ const ADMINS_FILE = path.join(DATA_DIR, "admins.json");
 const INVITES_FILE = path.join(DATA_DIR, "invites.json");
 const MEDIA_FILE = path.join(DATA_DIR, "media.json");
 
+function assertPersistentStorageAvailable(operationName: string) {
+  if (process.env.NODE_ENV === "production" && (!isSupabaseConfigured || !supabase)) {
+    throw new Error(
+      `Operación rechazada (${operationName}): La base de datos persistente (Supabase) no está configurada en producción. Las escrituras en disco efímero están bloqueadas para evitar pérdida de datos.`
+    );
+  }
+}
+
 function ensureDirectory() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -86,6 +94,7 @@ export async function getDraftContent(): Promise<PressKitData> {
 }
 
 export async function saveDraftContent(data: PressKitData): Promise<boolean> {
+  assertPersistentStorageAvailable("saveDraftContent");
   data.updatedAt = new Date().toISOString();
 
   if (isSupabaseConfigured && supabase) {
@@ -123,6 +132,7 @@ export interface ContentVersion {
 }
 
 export async function publishContent(note = "Publicación manual", author = "Admin"): Promise<PressKitData> {
+  assertPersistentStorageAvailable("publishContent");
   const draft = await getDraftContent();
   draft.version = (draft.version || 1) + 1;
   draft.updatedAt = new Date().toISOString();
@@ -221,6 +231,7 @@ export async function getAdmins(): Promise<AdminUser[]> {
 }
 
 export async function saveAdmins(admins: AdminUser[]): Promise<boolean> {
+  assertPersistentStorageAvailable("saveAdmins");
   if (isSupabaseConfigured && supabase) {
     try {
       // Reemplazar o upsert
@@ -255,6 +266,7 @@ export async function getInvites(): Promise<InviteCode[]> {
 }
 
 export async function saveInvites(invites: InviteCode[]): Promise<boolean> {
+  assertPersistentStorageAvailable("saveInvites");
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from("presskit_invites").upsert(invites);
@@ -338,6 +350,7 @@ export async function getMediaLibrary(): Promise<MediaItem[]> {
 }
 
 export async function saveMediaItem(item: MediaItem): Promise<boolean> {
+  assertPersistentStorageAvailable("saveMediaItem");
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from("presskit_media").insert([item]);
@@ -352,6 +365,7 @@ export async function saveMediaItem(item: MediaItem): Promise<boolean> {
 }
 
 export async function deleteMediaItem(id: string): Promise<boolean> {
+  assertPersistentStorageAvailable("deleteMediaItem");
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from("presskit_media").delete().eq("id", id);
