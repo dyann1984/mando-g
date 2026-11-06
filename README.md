@@ -154,3 +154,4 @@ SUPABASE_STORAGE_BUCKET="presskit-media"
 - Todas las rutas `/api/admin/*` y `/api/upload` verifican la sesión en servidor mediante cookies seguras `httpOnly`.
 - Validación estricta de extensiones y tamaños de archivo (imágenes hasta 15MB, videos hasta 50MB, documentos hasta 25MB).
 - Códigos de invitación protegidos contra reutilización y con caducidad por tiempo.
+
