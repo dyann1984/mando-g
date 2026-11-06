@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ArrowRight, KeyRound } from "lucide-react";
+import { ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff } from "lucide-react";
 
 export default function AdminSetupPage() {
   const router = useRouter();
@@ -10,7 +10,10 @@ export default function AdminSetupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [setupKey, setSetupKey] = useState("");
-  const [requiresKey, setRequiresKey] = useState(false);
+  const [requiresKey, setRequiresKey] = useState(true); // Default true para evitar parpadeos o envios sin clave
+  const [showSetupKey, setShowSetupKey] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,19 +21,36 @@ export default function AdminSetupPage() {
     fetch("/api/auth/setup")
       .then((res) => res.json())
       .then((data) => {
-        if (data.requiresKey) {
-          setRequiresKey(true);
+        if (data.needsSetup === false) {
+          router.push("/admin/login");
+          return;
         }
+        setRequiresKey(Boolean(data.requiresKey));
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanSetupKey = setupKey.trim();
+
+    if (!cleanUsername || !cleanEmail || !password) {
+      setError("Todos los campos son obligatorios.");
+      return;
+    }
+
     if (password.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    if (requiresKey && !cleanSetupKey) {
+      setError("Debes ingresar la Clave de Autorización de Setup (ADMIN_SETUP_KEY).");
       return;
     }
 
@@ -38,20 +58,28 @@ export default function AdminSetupPage() {
     try {
       const res = await fetch("/api/auth/setup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password, setupKey }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-setup-key": cleanSetupKey,
+        },
+        body: JSON.stringify({
+          username: cleanUsername,
+          email: cleanEmail,
+          password,
+          setupKey: cleanSetupKey,
+        }),
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert("¡Primer administrador creado exitosamente!");
+        alert("¡Primer administrador maestro creado exitosamente!");
         router.push("/admin");
         router.refresh();
       } else {
         setError(data.error || "No se pudo crear el administrador inicial.");
       }
     } catch (err: any) {
-      setError("Error de comunicación.");
+      setError("Error de comunicación con el servidor.");
     } finally {
       setLoading(false);
     }
@@ -116,31 +144,53 @@ export default function AdminSetupPage() {
             <label className="block text-xs font-head uppercase tracking-wider text-oro mb-1.5">
               Contraseña Maestra (mínimo 8 caracteres)
             </label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              className="campo text-sm"
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={8}
+                className="campo text-sm pr-10"
+                placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-hueso/40 hover:text-oro"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {requiresKey && (
             <div>
-              <label className="block text-xs font-head uppercase tracking-wider text-oro mb-1.5 flex items-center gap-1.5">
-                <KeyRound size={13} className="text-oro" />
-                <span>Clave de Autorización de Setup (ADMIN_SETUP_KEY)</span>
+              <label className="block text-xs font-head uppercase tracking-wider text-oro mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <KeyRound size={13} className="text-oro" />
+                  <span>Clave de Autorización de Setup (ADMIN_SETUP_KEY)</span>
+                </span>
               </label>
-              <input
-                type="password"
-                required
-                className="campo text-sm"
-                placeholder="Ingresa la clave de setup del entorno"
-                value={setupKey}
-                onChange={(e) => setSetupKey(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type={showSetupKey ? "text" : "password"}
+                  required
+                  className="campo text-sm pr-10 font-mono"
+                  placeholder="Pega la clave configurada en Vercel"
+                  value={setupKey}
+                  onChange={(e) => setSetupKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupKey(!showSetupKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-hueso/40 hover:text-oro"
+                  tabIndex={-1}
+                >
+                  {showSetupKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <p className="text-[10px] text-hueso/40 mt-1">
                 Esta clave protege el sistema contra inicializaciones no autorizadas.
               </p>

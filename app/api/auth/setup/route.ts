@@ -3,9 +3,18 @@ import { getAdmins, addAdmin } from "@/lib/db";
 import { hashPassword, generateToken, setSessionCookie } from "@/lib/auth";
 import { AdminUser } from "@/types/presskit";
 
+function cleanKey(val: any): string {
+  if (!val) return "";
+  let str = String(val).trim();
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+  return str;
+}
+
 export async function GET() {
   const admins = await getAdmins();
-  const requiresKey = Boolean(process.env.ADMIN_SETUP_KEY);
+  const requiresKey = Boolean(cleanKey(process.env.ADMIN_SETUP_KEY));
   return NextResponse.json({
     needsSetup: admins.length === 0,
     requiresKey,
@@ -23,13 +32,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const { username, email, password, setupKey } = body;
+    const body = await req.json().catch(() => ({}));
+    const { username, email, password } = body;
 
     // Validación de autorización para el setup inicial
-    const requiredSetupKey = process.env.ADMIN_SETUP_KEY;
+    const requiredSetupKey = cleanKey(process.env.ADMIN_SETUP_KEY);
     if (requiredSetupKey) {
-      const providedKey = setupKey || req.headers.get("x-admin-setup-key");
+      const rawProvided =
+        body.setupKey ||
+        body.adminSetupKey ||
+        body.ADMIN_SETUP_KEY ||
+        body.setup_key ||
+        req.headers.get("x-admin-setup-key") ||
+        "";
+      const providedKey = cleanKey(rawProvided);
+
       if (!providedKey || providedKey !== requiredSetupKey) {
         return NextResponse.json(
           { error: "Acceso denegado: Se requiere una clave de autorización válida (ADMIN_SETUP_KEY) para configurar el primer administrador." },
