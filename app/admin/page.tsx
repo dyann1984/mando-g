@@ -78,11 +78,17 @@ export default function AdminDashboardPage() {
       if (!authRes.ok) {
         // Verificar si necesita setup inicial
         const setupRes = await fetch("/api/auth/setup");
+        if (!setupRes.ok) {
+          showToast("No es posible consultar Supabase. Intenta nuevamente más tarde.", "error");
+          return;
+        }
         const setupData = await setupRes.json();
-        if (setupData.needsSetup) {
+        if (setupData.needsSetup === true) {
           router.push("/admin/setup");
-        } else {
+        } else if (setupData.needsSetup === false) {
           router.push("/admin/login");
+        } else {
+          showToast("No se pudo verificar el estado de los administradores.", "error");
         }
         return;
       }
