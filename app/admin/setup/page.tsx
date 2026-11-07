@@ -19,20 +19,25 @@ export default function AdminSetupPage() {
 
   useEffect(() => {
     fetch("/api/auth/setup")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo consultar Supabase. Intenta nuevamente.");
+        return res.json();
+      })
       .then((data) => {
         if (data.needsSetup === false) {
-          router.push("/admin/login");
+          router.replace("/admin/login");
           return;
         }
-        setRequiresKey(Boolean(data.requiresKey));
+        if (data.needsSetup !== true) throw new Error("Estado de administradores desconocido.");
+        setRequiresKey(true);
       })
-      .catch(() => {})
+      .catch((err) => setError(err.message || "Error de conexión con Supabase."))
       .finally(() => setChecking(false));
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (checking || error?.includes("Supabase")) return;
     setError(null);
 
     const cleanUsername = username.trim();
@@ -199,7 +204,7 @@ export default function AdminSetupPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || checking || Boolean(error && (error.includes("Supabase") || error.includes("desconocido")))}
             className="btn-oro w-full justify-center !py-3.5 text-sm flex items-center gap-2 mt-4"
           >
             <span>{loading ? "Inicializando sistema..." : "Crear Administrador y Entrar"}</span>
