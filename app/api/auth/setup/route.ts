@@ -13,13 +13,19 @@ function cleanKey(val: any): string {
 }
 
 export async function GET() {
-  const admins = await getAdmins();
-  const requiresKey = Boolean(cleanKey(process.env.ADMIN_SETUP_KEY));
-  return NextResponse.json({
-    needsSetup: admins.length === 0,
-    requiresKey,
-    count: admins.length,
-  });
+  try {
+    const admins = await getAdmins();
+    return NextResponse.json({
+      needsSetup: admins.length === 0,
+      requiresKey: true,
+      count: admins.length,
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo comprobar el estado de los administradores. Intenta nuevamente." },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }
 
 export async function POST(req: Request) {
@@ -74,7 +80,13 @@ export async function POST(req: Request) {
       lastLogin: new Date().toISOString(),
     };
 
-    await addAdmin(newAdmin);
+    const saved = await addAdmin(newAdmin);
+    if (!saved) {
+      return NextResponse.json(
+        { error: "No fue posible guardar la cuenta en Supabase." },
+        { status: 503 }
+      );
+    }
 
     const token = generateToken(newAdmin);
     setSessionCookie(token);
@@ -89,7 +101,11 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Error al inicializar el administrador." }, { status: 500 });
+    console.error("Fallo en configuración inicial:", err);
+    return NextResponse.json(
+      { error: "No fue posible completar la configuración. Comprueba la disponibilidad de Supabase." },
+      { status: 503 }
+    );
   }
 }
 
