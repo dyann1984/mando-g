@@ -217,37 +217,85 @@ export async function restoreVersion(versionId: string): Promise<PressKitData | 
 
 // ================= ADMINISTRADORES =================
 
+function adminFromDb(row: Record<string, any>): AdminUser {
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    passwordHash: row.password_hash,
+    role: row.role,
+    createdAt: row.created_at,
+    lastLogin: row.last_login ?? undefined,
+  };
+}
+
+function adminToDb(admin: AdminUser) {
+  return {
+    id: admin.id,
+    username: admin.username,
+    email: admin.email,
+    password_hash: admin.passwordHash,
+    role: admin.role,
+    created_at: admin.createdAt,
+    last_login: admin.lastLogin ?? null,
+  };
+}
+
 export async function getAdmins(): Promise<AdminUser[]> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.from("presskit_admins").select("*");
-      if (!error && data) return data as AdminUser[];
-    } catch (e) {
-      console.warn("Error leyendo admins en Supabase:", e);
+  if (!isSupabaseConfigured || !supabase) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Supabase no está configurado: no se puede determinar si ya existe un administrador.");
     }
+    return readJsonFile<AdminUser[]>(ADMINS_FILE, []);
   }
 
-  return readJsonFile<AdminUser[]>(ADMINS_FILE, []);
+  const { data, error } = await supabase.from("presskit_admins")
+    .select("id, username, email, password_hash, role, created_at, last_login");
+
+  if (error) {
+    console.error("Error consultando administradores en Supabase:", error.message);
+    throw new Error("No fue posible consultar los administradores en Supabase.");
+  }
+
+  return (data || []).map(adminFromDb);
 }
 
 export async function saveAdmins(admins: AdminUser[]): Promise<boolean> {
   assertPersistentStorageAvailable("saveAdmins");
-  if (isSupabaseConfigured && supabase) {
-    try {
-      // Reemplazar o upsert
-      await supabase.from("presskit_admins").upsert(admins);
-    } catch (e) {
-      console.error("Error guardando admins en Supabase:", e);
-    }
+
+  if (!isSupabaseConfigured || !supabase) {
+    return writeJsonFile(ADMINS_FILE, admins);
   }
 
-  return writeJsonFile(ADMINS_FILE, admins);
+  if (admins.length === 0) return true;
+  const { data, error } = await supabase.from("presskit_admins")
+    .upsert(admins.map(adminToDb), { onConflict: "id" }).select("id");
+
+  if (error || !data || data.length !== admins.length) {
+    console.error("Error persistiendo administradores:", error?.message || "Filas no confirmadas");
+    throw new Error("Supabase no confirmó el guardado de los administradores.");
+  }
+  return true;
 }
 
 export async function addAdmin(admin: AdminUser): Promise<boolean> {
-  const list = await getAdmins();
-  list.push(admin);
-  return saveAdmins(list);
+  assertPersistentStorageAvailable("addAdmin");
+
+  if (!isSupabaseConfigured || !supabase) {
+    const list = await getAdmins();
+    if (list.some(a => a.username === admin.username || a.email === admin.email)) {
+      throw new Error("El administrador ya existe.");
+    }
+    return writeJsonFile(ADMINS_FILE, [...list, admin]);
+  }
+
+  const { data, error } = await supabase.from("presskit_admins")
+    .insert(adminToDb(admin)).select("id").single();
+  if (error || !data || data.id !== admin.id) {
+    console.error("Error al insertar administrador:", error?.message || "Inserción no confirmada");
+    throw new Error("No se pudo guardar el administrador en Supabase.");
+  }
+  return true;
 }
 
 // ================= CÓDIGOS DE INVITACIÓN =================
