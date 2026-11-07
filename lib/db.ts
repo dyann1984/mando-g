@@ -242,6 +242,9 @@ function adminToDb(admin: AdminUser) {
 }
 
 export async function getAdmins(): Promise<AdminUser[]> {
+  if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Falta credencial de servicio Supabase para leer administradores.");
+  }
   if (!isSupabaseConfigured || !supabase) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("Supabase no está configurado: no se puede determinar si ya existe un administrador.");
