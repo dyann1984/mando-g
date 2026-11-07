@@ -43,7 +43,13 @@ export async function POST(req: Request) {
 
     // Validación de autorización para el setup inicial
     const requiredSetupKey = cleanKey(process.env.ADMIN_SETUP_KEY);
-    if (requiredSetupKey) {
+    if (!requiredSetupKey) {
+      return NextResponse.json(
+        { error: "Configuración inicial deshabilitada: falta ADMIN_SETUP_KEY en el servidor." },
+        { status: 503 }
+      );
+    }
+    {
       const rawProvided =
         body.setupKey ||
         body.adminSetupKey ||
